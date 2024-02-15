@@ -1,0 +1,409 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+</style>
+<title>CS 184/284A Rasterizer</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+<h1 align="middle"><font face = "Times New Roman">CS 184/284A: Computer Graphics and Imaging, Spring 2024</font></h1>
+<h1 align="middle"><font face = "Times New Roman">Homework 1: Rasterizer</font></h1>
+<h2 align="middle"><font face = "Times New Roman">Anthony Salinas Suarez</font></h2>
+
+<br><br>
+
+<div>
+
+<h2 align="middle"><font face = "Times New Roman">Overview</font></h2>
+<h3 align = "middle"><font face = "Times New Roman"><b>
+  Give a high-level overview of what you implemented in this homework. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the homework.
+</b></font></h3>
+<p align = "left"><font face = "Times New Roman">
+  For this homework, we implemented a simple rasterizer that, in a beautiful and quite elegant way, is able to abstract away the underlying pixels and polygonal shapes, in this case a triangle,
+  that are the foundation for the various SVG files that we use and test on. Our rasterizer made use of supersampling, texture mapping, and barycentric coordinate interpolation, all of which 
+  provided slightly different results for each SVG file. As I was working through this homework, there were a few things that I've learned and that I found to be quite interesting as well. These include:
+  <ul>
+    <li> 
+      The necessity to account for different triangular orientations given the vertices of the triangle. I did not think this was required as I originally figured that
+      all triangles followed a counter-clockwise orientation, as described in lecture, however, it was evident that this was not the case and I made sure to account for this in my implementation. 
+    </li>
+    <li>
+      This may be trivial, but I did also learn how to calculate the area of a triangle given 3 points (vertices)! I thought this was uniquely cool and, in my opinion, this was a lot cleaner
+      for trying to calculate our barycentric coordinates rather than following the more traditional linear interpolation approach! 
+    </li>
+  </ul>
+</font></p>
+
+
+<h2 align="middle"><font face = "Times New Roman">Section I: Rasterization</font></h2>
+
+<h3 align="middle"><font face = "Times New Roman">Part 1: Rasterizing single-color triangles</font></h3>
+
+<h4><font face = "Times New Roman">Walk through how you rasterize triangles in your own words.</font></h4>
+<p><font face = "Times New Roman">
+  For my rasterization algorithm, I began by identifying what the minimum and maximum bounds were and this was done in an attempt to be 
+  as efficient as possible as sampling on pixels outside this bounding box would just be unnecessary overhead. After computing these bounds 
+  and establishing my bounding box, I made a double for loop implementation to loop through every pixel along the height and width of the bounding
+  box and followed the point-in-triangle three lines test as discussed in lecture 2. To account for the fact that triangles need not always be in a 
+  counter-clockwise orientation, I included an additional check inside my inner most for loop to check whether we are inside/outside of the line 
+  and this was made to account for both clockwise and counter-clockwise orientations. Another viable method included using the right hand rule to switch around 
+  two points of your triangle but I ultimately settled on the former approach.
+</font></p>
+
+<div align = "middle">
+  <img src="images/based_t1.png" align="middle" width="400px"/>
+  <figcaption align="middle">It looks like the green triangle has a hook at its end hehehe.</figcaption>
+</div>
+
+<h4><font face = "Times New Roman">Explain how your algorithm is no worse than one that checks each sample within the bounding box of the triangle.</font></h4>
+<p><font face = "Times New Roman">
+  My algorithm did make use of this bounding box by identifying what the maximum and minimum bounds were along the "x" and "y" direction, 
+  so there is a guarantee that my algorithm meets the aforementioned requirement. 
+</font></p>
+
+<!---
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/image1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Caption goes here.</figcaption>
+      </td>
+      <td>
+        <img src="images/image2.png" align="middle" width="400px"/>
+        <figcaption align="middle">Caption goes here.</figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/image3.png" align="middle" width="400px"/>
+        <figcaption align="middle">Caption goes here.</figcaption>
+      </td>
+      <td>
+        <img src="images/image4.png" align="middle" width="400px"/>
+        <figcaption align="middle">Caption goes here.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+-->
+
+<h3 align="middle"><font face = "Times New Roman">Part 2: Antialiasing Triangles</font></h3>
+
+<h4><font face = "Times New Roman">Walk through your supersampling algorithm and data structures</font></h4>
+<p><font face = "Times New Roman">
+  For this task, I had to make some changes to adjust for the fact that now every pixel had sample_rate
+  color samples per pixel instead of our default 1 color sample per pixel from Task 1. To do this, I simply multiplied the size of 
+  my original buffer, which had enough space for the given number of pixels, by sample_rate t. My algorithm in of itself was very 
+  similar to the algorithm I had in mind for Task 1 and it was largely as follows:
+  <ul>
+    <li> 
+      Divide our pixel up into sample_rate color samples and this included the use of 2 additional inner for loops on top of the 2 for loops 
+      mentioned in task 1. This was so that we would be able to iterate through every subsample corresponding to the given pixel.
+    </li>
+    <li>
+      For each of these subsamples, conduct the point-in-triangle three lines test
+    </li>
+    <li>
+      If the subsample is inside the triangle then call fill_pixel to fill in the corresponding index in our sample_buffer with the corresponding color 
+    </li>
+    <li>
+      Once we have gone through every subsample of every pixel, then inside resolve_to_framebuffer(), I averaged out the color of all the subsamples 
+      corresponding to the specific pixel we are iterating on and filled in the corresponding index in our framerate_buffer  with this average color.
+    </li>
+  </ul>
+  I also made changed to rasterize_point() as needed to account for supersampling. 
+</font></p>
+
+<h4><font face = "Times New Roman">Why is supersampling useful?</font></h4>
+<p><font face = "Times New Roman">
+  Supersampling is useful because it allows us to sample various times per pixel and average out the color pertaining to that specific pixel and this 
+  plays a key role in us being able to remove some of the aliasing that takes place in the form of sharp edges and "jaggies" in our pixelated image in
+  screen space and this is evident in our images below as the greater our sample rate gets, the smoother our images becomes with the removal of these
+  sharp edges.
+</font></p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/sample_1.png" align="middle" width="300px"/>
+        <figcaption align="middle">Sample Rate: 1 (No Supersampling)</figcaption>
+      </td>
+      <td>
+        <img src="images/sample_4.png" align="middle" width="300px"/>
+        <figcaption align="middle">Sample Rate: 4</figcaption>
+      </td>
+      <td>
+        <img src="images/sample_16.png" align="middle" width="300px"/>
+        <figcaption align="middle">Sample Rate: 16</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<h4><font face = "Times New Roman">Explain how you used supersampling to antialias your triangles.</font></h4>
+<p><font face = "Times New Roman">
+  In our case, supersampling is used to antialias our triangles by removing some of the jaggedness and sharp edges we see on the sides 
+  of our triangle. The higher our sampling rate gets, the smoother our image becomes as well. 
+</font></p>
+
+
+<h3 align="middle"><font face = "Times New Roman">Part 3: Transforms </font></h3>
+<div align = "middle">
+  <img src="images/my_robot.png" align="middle" width="400px"/>
+  <figcaption align="middle"> My robot going through the TSA screening machine as they are getting ready to board their flight to destination Hawaii! </figcaption>
+</div>
+
+
+
+<h2 align="middle"><font face = "Times New Family">Section II: Sampling</font></h2>
+
+<h3 align="middle"><font face = "Times New Roman">Part 4: Barycentric Coordinates </font></h3>
+<h4><font face = "Times New Roman">Explain barycentric coordinates in your own words</font></h4>
+<p><font face = "Times New Roman">
+  Barycentric coordinates are essentially a coordinate system for triangles made up of unit normalized coordinates that are used to express the distance 
+  of some point inside the triangle with respect to each of the three vertices. Since triangles have 3 vertices, these coordinates will 
+  take the following form: 
+  <ul>
+    <li> 
+      (alpha, beta, gamma) 
+    </li>
+  </ul>
+  Where each of alpha, beta, gamma represent how far the unit normalized distance is from the point to each corner. So (1, 0, 0), (0, 1, 0), (0, 0, 1) would be 
+  representations where the point is at any of the 3 vertices of our triangle and (1/3, 1/3, 1/3) represents the middle point of our triangle where the point 
+  would be equidistant from all vertices. Any combination of these points will set the point somewhere within the triangle. As can be seen from the images below, 
+  as we increase any one of the (alpha, beta, gamma) coordinates, we get closer to a vertex and therefore the resulting color from that vertex 
+  becomes more dominant and as we get closer to the middle of the triangle, what we see is typically some blending of colors as a result of (alpha, beta, gamma) being used
+  as weights that are then multiplied by the corresponding color of the vertex.
+</font></p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/t4_2.png" align="middle" width="300px"/>
+        <figcaption align="middle">Sample Rate: 1 (No Supersampling)</figcaption>
+      </td>
+      <td>
+        <img src="images/t4_3.png" align="middle" width="300px"/>
+        <figcaption align="middle"> Just a simple red, green, blue triangle! </figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+
+<h3 align="middle"><font face = "Times New Roman"> Part 5: "Pixel sampling" for texture mapping </font></h3>
+<h4><font face = "Times New Roman"> Explain pixel sampling in your own words and describe how you implemented it to perform texture mapping </font></h4>
+<p><font face = "Times New Roman">
+  Pixel sampling is sort of like a "reconstruction" process where we use a given a subset of encoded pixels, in texture space, and use this to reconstruct 
+  some sample pixel in our screen space and this can be achieved via various methods such as the ones discussed in lecture which include:
+  <ul>
+    <li> 
+     Bilinear Sampling
+    </li>
+    <li>
+      Nearest Neighbor
+    </li>
+  </ul>
+  In my implementation, I interpreted texture mapping by calculating the barycentric coordinates for each subsample of the pixel, we are still 
+  required to supersample for this task and any tasks going forward, and after performing this operation, we'd convert the resulting coordinates 
+  to our uv texture space and finally depending on which algorithm we decided to run, the following occurred: 
+  <ul>
+    <li> 
+     Bilinear Sampling: We use the 4 nearest texels to our uv coordinate in texture space to calculate the desired texture in our screen space.
+    </li>
+    <li>
+      Nearest Neighbor: We round the desired location to get the closest corresponding texel in texture space to calculate the desired texture in our screen space.
+    </li>
+  </ul>
+</font></p>
+<h4><font face = "Times New Roman"> Bilinear Sampling </font></h4>
+<p><font face = "Times New Roman">
+  The process for bilinear sampling involves first locating and isolating the 4 nearest texels to our desired location and then computing the weighted average of these texels
+  to get some resulting texture for this location. As discussed in lecture, this process of computing the "weighted" average is done 
+  via two horizontal interpolations (lerp) followed by a final vertical interpolation which outputs our end result.
+</font></p>
+<h4><font face = "Times New Roman"> Nearest Neighbor </font></h4>
+<p><font face = "Times New Roman">
+  The process for nearest neighbor is a lot more simple than bilinear sampling and simply involves rounding to get the nearest texel to
+  our desired location and then using this nearest texel to extract the desired texture.
+</font></p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/t5_1.png" align="middle" width="400px"/>
+        <figcaption align="middle"> Nearest Neighbor with Sample Rate: 1 </figcaption>
+      </td>
+      <td>
+        <img src="images/t5_2.png" align="middle" width="400px"/>
+        <figcaption align="middle"> Bilinear Sampling with Sample Rate: 1 </figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/t5_3.png" align="middle" width="400px"/>
+        <figcaption align="middle"> Nearest Neighbor with Sample Rate: 16</figcaption>
+      </td>
+      <td>
+        <img src="images/t5_4.png" align="middle" width="400px"/>
+        <figcaption align="middle"> Bilinear Sampling with Sample Rate: 16 </figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<h4><font face = "Times New Roman"> Comment on the relative differences. Discuss when there will be a large difference between the two methods and why. </font></h4>
+<p><font face = "Times New Roman">
+  What I notice right away from looking at these four images is that the results of using a nearest neighbor algorithm seem to look more "blocky"
+  whereas the results from bilinear sampling look "smoother" and seemingly more distinguishable. In general, it also seems like the greater
+  the sampling rate, the better the produced results will be and that is evident by the images on the 2nd row which seem more clearer than the images 
+  above it. Based on the results above, it also seems like the biggest difference will take place when the sampling rate is low and that is evident 
+  by the two images in the first row where: 
+  <ul>
+    <li> 
+     Top Left: It's hard to decipher and make out what the zoomed in letters are supposed to be
+    </li>
+    <li>
+      Top Right: You are able to reasonably conclude that the letters being zoomed into are a R and a K.
+    </li>
+  </ul>
+  Intuitively this would make sense as supersampling in general will amplify the quality of the rendered image at the expense of computational costs. 
+  So our sampling rate would have to be rather low for us to truly discern any noticeable differences. 
+</font></p>
+
+<h3 align="middle"><font face = "Times New Roman">Part 6: "Level sampling" with mipmaps for texture mapping</font></h3>
+
+<h4><font face = "Times New Roman">Explain level sampling in your own words and describe how you implemented it for texture mapping.</font></h4>
+<p><font face = "Times New Roman">
+  Level sampling is a technique that focuses on selecting different levels of texture for our screen space depending on how far away the
+  object is from the viewer. In doing so, level sampling is able to take advantage of the fact that the closer an object may be to the viewer, 
+  the higher the resolution needs to be to accurately portray all the details and intricacies associated with the object in the screen space.
+</font></p>
+<p><font face = "Times New Roman">
+  In my implementation, I was able to implement level sampling by following closely to what was described in Lecture 5 and this process included:
+  <ul>
+    <li> 
+      First identifying the change dx and dy in our screen space
+    </li>
+    <li>
+      Afteward, I used dx, dy to calculate the change du and dv in our texture space
+    </li>
+    <li>
+      Finally using du and dv, I went through the derivation which included calculating the magnitude of our 2D vectors in texture space
+      and identifying which of these two magnitudes was larger. Lastly taking the log of the larger magnitude would then yield us 
+      the level at which we were to sample our texels. So the key idea here was that...the larger the magnitude, the closer our object is, and the higher the 
+      resolution level needed to be in order for us to sample texels properly.
+    </li>
+  </ul>
+</font></p>
+
+<h4><font face = "Times New Roman"> Describe the tradeoffs between speed, memory usage, and antialiasing power between the three various techniques. </font></h4>
+<p><font face = "Times New Roman">
+  <ul>
+    <li> 
+      Pixel sampling 
+      <ul>
+        <li> 
+          In terms of speed, pixel sampling is decently fast as it does not require complex calculations and simply relies on 
+          computing a fixed number of calculations regardless of whether we follow a bilinear sampling or nearest neighbor approach
+        </li>
+        <li> 
+          In terms of memory usage, pixel sampling takes up O(N) memory as it scales linearly with respect to the size of the image 
+        </li>
+        <li> 
+          In terms of antialiasing power, pixel sampling does not inherently include anything against removing the sharp edges seen 
+          in images.
+        </li>
+      </ul>
+    </li>
+    <li>
+      Level sampling 
+      <ul>
+        <li> 
+          In terms of speed, level sampling is comparable to pixel sampling as it also relies on computing a fixed number 
+          of calculations regardless of whether we are following a nearest, zero-th, or linear approach
+        </li>
+        <li> 
+          In terms of memory usage, level sampling is perhaps the most expensive as we need to store memory for every level
+          of our mipmap. In this homework, I hard capped my mipmap level limit at 8, but you can certainly go beyond that. 
+        </li>
+        <li>
+          In terms of antialiasing power, level sampling is also similar to pixel sampling as it does not inherently include anything against 
+          removing the sharp edges seen in images.
+        </li>
+      </ul>
+    </li>
+    <li>
+      Number of samples per pixel (Supersampling)
+      <ul>
+        <li> 
+          In terms of speed, supersampling is probably the slowest of the 3 techniques as for every pixel, it must perform sample_rate 
+          calculations and for a relatively small image, the speed difference may not be noticeable but as we scale to larger and 
+          larger images, the computational costs will become very apparent and so in this case, the time complexity could be described 
+          by O(a * N) where N is the number of pixels and a is our sampling rate.
+        </li>
+        <li> 
+          In terms of memory usage, this would also be around O(a * N) as we need our sample buffer to hold additional memory based off 
+          the fact that each pixel now has a subsamples. 
+        </li>
+        <li> 
+          In terms of antialiasing, supersampling is also the best out of the three techniques as it smoothens out the image in screen 
+          space by averaging out the value of each pixel in screen space and thus allowing us to do a remarkbly good job at removing 
+          some of the jaggedness that is often associated with these pixelated images. 
+        </li>
+      </ul>
+    </li>
+  </ul>
+</font></p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/0_pnear.png" align="middle" width="400px"/>
+        <figcaption align="middle"> Level 0 mipmap with nearest neighbor sampling </figcaption>
+      </td>
+      <td>
+        <img src="images/0_plinear.png" align="middle" width="400px"/>
+        <figcaption align="middle"> Level 0 mipmap with bilinear sampling </figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/near_pnear.png" align="middle" width="400px"/>
+        <figcaption align="middle"> Nearest mipmap with nearest neighbor sampling </figcaption>
+      </td>
+      <td>
+        <img src="images/near_plinear.png" align="middle" width="400px"/>
+        <figcaption align="middle"> Nearest mipmap with bilinear sampling </figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>
